@@ -1,0 +1,312 @@
+/* This version does not have the MSP indicator, but does not have MSP indcator */
+
+SELECT
+Cast(p.pnr_active_dtmz +  lat.GMT_OFFSET AS DATE) AS Creation_dt,
+p.pnr_active_dtmz +  lat.GMT_OFFSET AS chi_time,
+
+CASE WHEN 
+COUPON_ORIG_CD < COUPON_DEST_CD THEN Trim(COUPON_ORIG_CD) || Trim(COUPON_DEST_CD)
+ELSE Trim(COUPON_DEST_CD) || Trim(COUPON_ORIG_CD)
+End AS Non_dir_mkt,
+COUPON_ORIG_CD AS station,
+FLT_NUM AS flight_number,
+Dprt_Dt,
+
+CASE  
+WHEN MSP_L.record_id IS NULL THEN 'Flow/Beyond'
+WHEN Substr(tkt_designator_left,7,1) = 'D' THEN 'Flow/Beyond'
+WHEN tl.tot_lof_segs = 1 THEN 'Local'
+ELSE 'Flow/Beyond'
+End AS local_flow,
+
+
+CASE WHEN 
+statute_miles <= 500 THEN '0-500'
+WHEN statute_miles >= 501 AND statute_miles <= 1200 THEN '501-1200'
+WHEN statute_miles >=1201 AND statute_miles <= 2000 THEN '1201-2000'
+WHEN statute_miles > 2000 THEN '2000+'
+End AS Mileage_band,
+
+BKNG_COS RBD,
+CASE WHEN
+bkng_cos = 'N' THEN Substr(TKT_DESIGNATOR_LEFT,1,1)
+WHEN Substr(bkng_cos,2,1) ='N' THEN 'Award'
+WHEN bkng_cos = 'X' THEN 'Award'
+ELSE bkng_cos
+end AS FBC_BC,
+CASE 
+WHEN cc.source_rcrd_loc IS NOT NULL 
+THEN 'Carry-on Bag'
+--WHEN  substr(cc_num, 1,6) IN (401135, 402297, 402298, 403210, 403213, 405006, 408161, 411816, 414720, 418550, 418586, 418587, 422581, 422661, 424615, 424617, 424631, 426030, 426681, 426683, 426684, 426685, 430154, 430587, 431228, 432542, 433237, 436610, 436612, 436616, 436617, 438852, 438854, 438857, 441711, 441712, 441716, 444400, 473161, 479133, 479860, 540168, 546604, 546626, 546651, 546657, 549085, 549086, 552475, 554608, 558821, 558967)
+WHEN elt.ELITE_LVL_DSCR IS NOT NULL 
+THEN 'Carry-on Bag'
+WHEN bkng_cos = 'N' AND Substr(tkt_designator_left,7,1) = 'B'  THEN  'No Carry-on Bag'
+ELSE 'Carry-on Bag'
+End AS Carry_on_bag,
+
+CASE
+WHEN cc.source_rcrd_loc IS NOT NULL
+THEN 'CC_user'
+ELSE 'Other FOP'
+End AS Credit_Card,
+
+/*
+CASE 
+--WHEN cc.record_id IS NOT null 
+WHEN  substr(cc_num, 1,6) IN (401135, 402297, 402298, 403210, 403213, 405006, 408161, 411816, 414720, 418550, 418586, 418587, 422581, 422661, 424615, 424617, 424631, 426030, 426681, 426683, 426684, 426685, 430154, 430587, 431228, 432542, 433237, 436610, 436612, 436616, 436617, 438852, 438854, 438857, 441711, 441712, 441716, 444400, 473161, 479133, 479860, 540168, 546604, 546626, 546651, 546657, 549085, 549086, 552475, 554608, 558821, 558967)
+THEN 'Card User'
+WHEN elt.ELITE_LVL_DSCR is not null 
+THEN 'Carry-on Bag'
+WHEN bkng_cos <> 'N'
+THEN 'Carry-on Bag'
+Else 'No Carry-on Bag'
+End as Carry_on_bag2,
+*/
+
+CASE 
+WHEN DPRT_DT -  tk.ISSUED_DT < 14 THEN '0-13'
+WHEN (DPRT_DT -   tk.ISSUED_DT < 30) THEN '14-29'
+WHEN (DPRT_DT -   tk.ISSUED_DT < 45) THEN '30-44'
+WHEN (DPRT_DT -   tk.ISSUED_DT < 60) THEN '45-60'
+ELSE '60+'
+End AS DFD_GROUP,
+
+Coalesce(elt.ELITE_LVL_DSCR,'Non-Elite') AS Status,
+CASE    WHEN p.orignl_agent_aaa = 'web' AND p.orignl_agent_sine = 'bk' AND rmk.rcrd_loc IS NOT NULL THEN 'Mobile'
+        WHEN p.orignl_agent_aaa = 'web' AND p.orignl_agent_sine = 'bk' AND rmk.rcrd_loc IS NULL THEN 'United.com'
+        WHEN p.orignl_agent_aaa = 'web' AND p.orignl_agent_sine = 'co' AND rmk.rcrd_loc IN ('BOOKINGCHANNEL-MOBILE','BOOKINGCHANNEL - MOBILE') THEN 'Mobile'
+        WHEN p.orignl_agent_aaa = 'web' AND p.orignl_agent_sine = 'co' AND rmk.rcrd_loc IS NOT NULL THEN 'Mobile'
+        WHEN p.orignl_agent_aaa = 'web' AND p.orignl_agent_sine = 'co' AND rmk.rcrd_loc IS NULL THEN 'United.com'
+        WHEN Trim(p.oa_arc_iata_num) = '' THEN 'Other Direct'
+        WHEN aa.account_type = 'Global' THEN 'Global/National/Field'
+        WHEN aa.account_type = 'National' THEN 'Global/National/Field'
+        WHEN aa.account_type = 'Field' THEN 'Global/National/Field'
+        WHEN aa.account_type = 'Specialty' THEN 'Specialty'
+        WHEN aa.account_type = 'OTA' THEN 'OTA'
+        ELSE 'Other Agency'
+        end AS channel,
+Coalesce(aa.ACCOUNT_NAME,'Non-Alignment') AS Account_name,
+--Coalesce(ACCOUNT_TYPE, 'Non-Alignment') as Account_Type, 
+--Coalesce(ACCOUNT_TYPE_detail,'Non-Alignment') as Detailed_Account_Type
+
+
+
+
+CASE	WHEN BKNG_COS = 'N' AND Substr(tc.tkt_designator_left, 7, 1) = 'B' THEN 'Basic'
+		WHEN MSP_L.record_id IS NULL THEN 'Flow Economy*'
+		WHEN TKT_DESIGNATOR_LEFT IN ('GDGDCA', 'YCA', 'KDG', 'LDGLGA', 'GDG', 'KDGLGA', 'KDGDCA', 'TDG', 'TDGDCALG', 'LDGDCA', 'LDG', 'SCA', 'SCAIAD', 'SDG', 'YCACA', 'TDGLGA', 'YCAIAD', 'WDG', 'TDGDCA', 'VCACA', 'WDGDCALG', 'WDGLGA', 'WDGDCA', 'VDGDCA', 'SDGLGA', 'YCADCA', 'VDG', 'KDGIAD', 'SCALGA', 'WCA', 'SDGDCA', 'YCALGA', 'WCADCA', 'SCADCA', 'SDGIAD', 'VCA', 'QDG', 'VDGIAD', 'TDGIAD', 'LDGIAD', 'VCAIAD', 'WDGIAD', 'QDGDCA', 'HDG', 'WCALGA', 'QCA', 'QDGLGA', 'HDGLGA', 'WCAIAD', 'UDG', 'UDGDCA', 'UDGLGA', 'QCAIADLG', 'HDGDCA', 'QDGIAD', 'VCADCA', 'HCA', 'VDGLGA', 'HCAIAD', 'HDGIAD', 'EDG', 'QCAIAD', 'EDGDCA', 'UCA', 'UCAIAD', 'ECAIAD', 'EDGLGA', 'MDG', 'ECA', 'EDGIAD', 'MDGDCA', 'MDGDCALG', 'UDGIAD', 'MDGLGA', 'VCACADCA', 'VCACALGA', 'MCA', 'MCAIAD', 'VCACAIAD', 'MDGIAD', 'BDG', 'BDGLGA', 'BDGDCA', 'YCAIADLG', 'YDG', 'YDGDCA', 'YDGLGA', 'HCADCA', 'YCACAIAD', 'YCACADCA', 'YDGDCALG', 'BCA', 'BDGIAD', 'YDGIAD', 'BCAIAD', 'YCACALGA') THEN 'Local Award/Gov'
+		WHEN BKNG_COS IN ('YN', 'HN', 'XN', 'X') THEN 'Local Award/Gov'
+		WHEN Substr(tc.tkt_designator_left, 7, 1) = 'E' THEN 'Buy-up Economy'
+		WHEN Substr(tc.tkt_designator_left, 7, 1) = 'D' THEN 'Flow Economy*'
+		ELSE 'Flow Economy*'
+		End AS N_Class_Ind,
+
+CASE 	WHEN ISO_CNTRY_CD = 'US' THEN 'US'
+		ELSE 'Non-US'
+		end AS POS,
+
+
+
+Sum(pax_count) Pax,
+Sum(PRORATE_AMT) Revenue,
+Sum(CASE    
+		WHEN Trim(tktng_cos) = 'N' THEN 0
+		WHEN N_Class_ind = 'Other Economy' THEN 0
+		WHEN Substr(tkt_designator_left,7,2) = 'EY' THEN 5
+		WHEN tkt_designator_left = 'Y' THEN 5
+        WHEN Trim(coupon_orig_cd)||Trim(coupon_Dest_Cd) IN ('MSPLAX', 'MSPSFO', 'LAXMSP', 'SFOMSP') THEN 25
+        WHEN Trim(coupon_orig_cd)||Trim(coupon_Dest_Cd) IN ('MSPEWR', 'MSPLGA', 'MSPIAD', 'MSPDCA', 'MSPBWI', 'MSPDEN', 'MSPIAH', 'MSPHOU', 'EWRMSP', 'LGAMSP', 'IADMSP', 'DCAMSP', 'BWIMSP', 'DENMSP', 'IAHMSP', 'HOUMSP') THEN 20
+        WHEN Trim(coupon_orig_cd)||Trim(coupon_Dest_Cd) IN ('MSPORD', 'ORDMSP') THEN 15
+        ELSE 0 
+        End
+        ) AS Buyup
+
+FROM coupon tc
+
+JOIN ticket tk
+ON tk.record_id = tc.record_id
+
+JOIN coupon_lof tcl
+ON tcl.record_id = tc.record_id
+AND tcl.relative_tkt_seq = tc.relative_tkt_seq
+AND tcl.coupon_num = tc.coupon_num
+
+JOIN vw_lof tl
+ON tl.lof_id = tcl.lof_id
+
+JOIN pnr p
+ON p.rcrd_loc = tk.source_rcrd_loc
+AND p.creation_dt = tk.PNR_create_dt
+
+JOIN statute_miles mileage
+ON tc.coupon_ORIG_CD = mileage.ORIG_CD
+AND tc.coupon_DEST_CD = mileage.DEST_CD
+
+JOIN  fop fop
+ON fop.record_id = tk.record_id
+
+JOIN Location_DST lat
+ON lat.EFF_DTMZ <= p.pnr_active_dtmz
+AND lat.Disc_DTMZ >  p.pnr_active_dtmz
+
+LEFT 
+JOIN csrm_temp2_Db.agency_alignment_sales_Goals aa
+ON aa.account_id = tk.tktng_agency_ID
+
+LEFT
+JOIN(	SELECT elt.*
+		, el.ELITE_LVL_DSCR
+
+		FROM(	SELECT tk.SOURCE_RCRD_LOC
+				, pnr_create_dt
+				, tc.relative_tkt_Seq
+				, tc.coupon_num
+				, Max(n.elt_lvl_cd) AS Max_E_Lvl
+
+
+				FROM ticket tk
+						
+				JOIN coupon tc
+				ON tc.record_id = tk.record_id
+				
+				JOIN ELITE_LEVEL_HIST n
+				ON tc.cust_id = n.cust_id
+				AND tc.DPRT_DT >= n.EFF_DT
+				AND tc.DPRT_DT < n.Disc_DT
+				
+				JOIN Elite_level el
+				ON n.ELT_LVL_CD = el.ELITE_LVL_CD
+				AND el.inactive_Dtmz =  '3001-01-01 00:00:00.000'
+				
+				WHERE tk.prorated_ind = 'Y'
+				AND tc.OPER_CARR_CD = ''
+				AND tc.dprt_Dt BETWEEN '2017-04-18' AND DATE + 364
+				AND Trim(tc.COUPON_ORIG_CD)||Trim(tc.COUPON_DEST_CD) IN ('MSPORD', 'ORDMSP', 'MSPDEN', 'DENMSP', 'MSPEWR', 'EWRMSP', 'MSPIAH', 'IAHMSP', 'MSPLAX', 'LAXMSP', 'MSPSFO', 'SFOMSP', 'MSPIAD', 'IADMSP')
+				AND tc.BKNG_COS IN ('Y', 'YN', 'B', 'M', 'E', 'U', 'H', 'HN', 'Q', 'V', 'W', 'S','T','L', 'K', 'G', 'N', 'XN', 'X')
+				AND tk.issued_Dt BETWEEN '2017-02-21' AND DATE
+				--and tkt_stock_id = '016'
+				GROUP BY 1, 2, 3, 4
+			) ELT
+			
+			JOIN Elite_level el
+			ON Max_E_Lvl = el.ELITE_LVL_CD
+			AND el.inactive_Dtmz =  '3001-01-01 00:00:00.000'
+	) ELT
+ON tk.SOURCE_RCRD_LOC = elt.SOURCE_RCRD_LOC
+AND tk.pnr_create_dt = elt.pnr_create_dt
+AND tc.relative_tkt_seq = elt.relative_tkt_seq
+AND tc.coupon_num = elt.coupon_num
+
+
+LEFT 
+JOIN(	SELECT Rcrd_loc ,
+		Creation_dt
+		
+		FROM remark r
+
+		JOIN ticket tk
+		ON tk.source_rcrd_loc = r.rcrd_loc
+		AND tk.pnr_create_Dt = r.creation_dt
+		
+		JOIN coupon tc
+		ON tc.record_id = tk.record_id
+
+		WHERE r.remark_txt IN ('BOOKINGCHANNEL - MOBILE - ANDROID','BOOKINGCHANNEL - MOBILE - IOS','BOOKINGCHANNEL-MOBILE','BOOKINGCHANNEL - MOBILE','web client ip 127.0.0.1')
+		AND r.creation_dt BETWEEN '2017-02-21' AND DATE
+		AND r.REMARK_ACTIVE_DTMZ BETWEEN '2017-02-21 00:00:00.000' AND currentgmt()
+		AND r.REMARK_INACTIVE_DTMZ BETWEEN '2017-02-21 00:00:00.000' AND '3001-01-01 00:00:00.000'
+		AND tk.prorated_ind = 'Y'
+		AND tc.OPER_CARR_CD = ''
+		AND tc.dprt_Dt BETWEEN '2017-04-18' AND DATE + 364
+		AND Trim(tc.COUPON_ORIG_CD)||Trim(tc.COUPON_DEST_CD) IN ('MSPORD', 'ORDMSP', 'MSPDEN', 'DENMSP', 'MSPEWR', 'EWRMSP', 'MSPIAH', 'IAHMSP', 'MSPLAX', 'LAXMSP', 'MSPSFO', 'SFOMSP', 'MSPIAD', 'IADMSP')
+		AND tc.BKNG_COS IN ('Y', 'YN', 'B', 'M', 'E', 'U', 'H', 'HN', 'Q', 'V', 'W', 'S','T','L', 'K', 'G', 'N', 'XN', 'X')
+		AND tk.issued_Dt BETWEEN '2017-02-21' AND DATE
+		--and tkt_stock_id = '016'
+		GROUP BY 1,2 
+	) rmk 
+ON p.creation_dt = rmk.creation_dt
+AND p.rcrd_loc = rmk.rcrd_loc
+
+LEFT
+JOIN(	SELECT tk.SOURCE_RCRD_LOC
+		, tk.pnr_create_dt
+
+		FROM coupon tc
+
+		JOIN ticket tk
+		ON tk.record_id = tc.record_id
+		
+		JOIN cust_prtcpnt_pgm_mbr c
+		ON Trim(tc.cust_id) = c.op_id                                                                                     
+		AND c.active_dt <= tk.issued_dt
+		AND c.inactive_dt > tk.issued_dt  
+		
+		JOIN prtcpnt_pgm_cardholder h
+		ON c.op_id = h.op_id
+		AND h.prtcpnt_id = 'ch'
+		AND h.active_dt <= tc.dprt_dt
+		AND h.inactive_dt > tc.dprt_dt
+		
+		WHERE tk.prorated_ind = 'Y'
+		AND tc.OPER_CARR_CD = ''
+		AND tc.dprt_Dt BETWEEN '2017-04-18' AND DATE + 364
+		AND tc.BKNG_COS IN ('Y', 'YN', 'B', 'M', 'E', 'U', 'H', 'HN', 'Q', 'V', 'W', 'S','T','L', 'K', 'G', 'N', 'XN', 'X')
+		AND tk.issued_Dt BETWEEN '2017-02-21' AND DATE
+		GROUP BY 1,2
+	) CC
+ON cc.SOURCE_RCRD_LOC = tk.SOURCE_RCRD_LOC AND
+	cc.pnr_create_dt = tk.pnr_create_dt
+
+LEFT
+JOIN (	SELECT tk.record_id,
+		
+		Sum(CASE	WHEN Trim(tc.COUPON_ORIG_CD)||Trim(tc.COUPON_DEST_CD) IN ('MSPORD', 'ORDMSP', 'MSPDEN', 'DENMSP', 'MSPEWR', 'EWRMSP', 'MSPIAH', 'IAHMSP', 'MSPLAX', 'LAXMSP', 'MSPSFO', 'SFOMSP', 'MSPIAD', 'IADMSP') THEN 0
+					ELSE 1
+					End) AS MSP_Ind,
+		Sum(CASE	WHEN Trim(tc.oper_carr_Cd) = '' THEN 0
+					ELSE 1
+					End) AS _Ind,
+		Sum(CASE 	WHEN tot_lof_Segs = 1 THEN 0
+					ELSE 1
+					End) AS Local_Ind
+					
+		FROM ticket tk
+				
+		JOIN coupon tc
+		ON tc.record_id = tk.record_id
+		
+		JOIN coupon_lof tcl
+		ON tcl.record_id = tc.record_id
+		AND tcl.relative_tkt_seq = tc.relative_tkt_seq
+		AND tcl.coupon_num = tc.coupon_num
+
+		JOIN lof tl
+		ON tl.lof_id = tcl.lof_id
+		
+		WHERE tk.prorated_ind = 'Y'
+		AND tc.dprt_Dt BETWEEN '2017-02-21' AND DATE + 364
+		AND tk.issued_Dt BETWEEN '2017-02-21' AND DATE
+		AND tk.tkt_stock_id = '016'
+		
+				
+		GROUP BY 1
+		
+		HAVING MSP_Ind = 0
+		AND _Ind = 0
+		AND Local_Ind = 0
+	) MSP_L
+ON MSP_L.Record_Id = tk.record_id
+
+WHERE Cast(p.pnr_active_dtmz +  lat.GMT_OFFSET AS DATE) BETWEEN  '2017-02-21' AND DATE - 2
+AND tk.prorated_ind = 'Y'
+AND p.First_ver_ind = 'Y'
+--AND tl.tot_lof_segs = 1
+--AND /*(substr(TKT_DESIGNATOR_LEFT,8,1) <> ' '*AND*/ substr(TKT_DESIGNATOR_LEFT,7,1) not IN ( 'B','E')  /* ORTKT_DESIGNATOR_LEFT = 'Y')*/
+AND tc.bkng_cos IN ('Y', 'YN', 'B', 'M', 'E', 'U', 'H', 'HN', 'Q', 'V', 'W', 'S','T','L', 'K', 'G', 'N', 'XN', 'X')
+--AND Trim(fop.EXCHGD_TKT_INFO) = ''
+AND lat.location_cd = 'ORD'
+AND p.pnr_active_dtmz +  lat.GMT_OFFSET > '2017-02-21 09:07:00.000'
+--and tkt_stock_id = '016'
+
+
+GROUP BY 1,2,3,4,5,6,7,8,9, 10, 11,12, 13, 14, 15, 16, 17, 18, 19, 20
